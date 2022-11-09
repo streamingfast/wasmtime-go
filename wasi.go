@@ -6,20 +6,28 @@ import "C"
 import (
 	"errors"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
 type WasiConfig struct {
 	_ptr *C.wasi_config_t
+	once sync.Once
 }
 
 func NewWasiConfig() *WasiConfig {
 	ptr := C.wasi_config_new()
 	config := &WasiConfig{_ptr: ptr}
 	runtime.SetFinalizer(config, func(config *WasiConfig) {
-		C.wasi_config_delete(config._ptr)
+		config.FreeMem()
 	})
 	return config
+}
+
+func (c *WasiConfig) FreeMem() {
+	c.once.Do(func() {
+		C.wasi_config_delete(c._ptr)
+	})
 }
 
 func (c *WasiConfig) ptr() *C.wasi_config_t {

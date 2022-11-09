@@ -18,6 +18,8 @@ type Store struct {
 	// The `Engine` that this store uses for compilation and environment
 	// settings.
 	Engine *Engine
+
+	once sync.Once
 }
 
 // Storelike represents types that can be used to contextually reference a
@@ -69,7 +71,7 @@ func NewStore(engine *Engine) *Store {
 		Engine: engine,
 	}
 	runtime.SetFinalizer(store, func(store *Store) {
-		C.wasmtime_store_delete(store._ptr)
+		store.FreeMem()
 	})
 	return store
 }
@@ -85,6 +87,12 @@ func goFinalizeStore(env unsafe.Pointer) {
 	defer gStoreLock.Unlock()
 	delete(gStoreMap, idx)
 	gStoreSlab.deallocate(idx)
+}
+
+func (store *Store) FreeMem() {
+	store.once.Do(func() {
+		C.wasmtime_store_delete(store._ptr)
+	})
 }
 
 // GC will clean up any `externref` values that are no longer actually

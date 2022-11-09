@@ -6,6 +6,7 @@ import "C"
 import (
 	"reflect"
 	"runtime"
+	"sync"
 )
 
 // Linker implements a wasmtime Linking module, which can link instantiated modules together.
@@ -14,17 +15,22 @@ import (
 type Linker struct {
 	_ptr   *C.wasmtime_linker_t
 	Engine *Engine
+	once   sync.Once
 }
 
 func NewLinker(engine *Engine) *Linker {
 	ptr := C.wasmtime_linker_new(engine.ptr())
 	linker := &Linker{_ptr: ptr, Engine: engine}
 	runtime.SetFinalizer(linker, func(linker *Linker) {
-		C.wasmtime_linker_delete(linker._ptr)
+		linker.FreeMem()
 	})
 	return linker
 }
-
+func (l *Linker) FreeMem() {
+	l.once.Do(func() {
+		C.wasmtime_linker_delete(l._ptr)
+	})
+}
 func (l *Linker) ptr() *C.wasmtime_linker_t {
 	ret := l._ptr
 	maybeGC()

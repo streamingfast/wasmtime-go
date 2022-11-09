@@ -4,6 +4,7 @@ package wasmtime
 import "C"
 import (
 	"runtime"
+	"sync"
 )
 
 // Engine is an instance of a wasmtime engine which is used to create a `Store`.
@@ -12,13 +13,14 @@ import (
 // and such.
 type Engine struct {
 	_ptr *C.wasm_engine_t
+	once sync.Once
 }
 
 // NewEngine creates a new `Engine` with default configuration.
 func NewEngine() *Engine {
 	engine := &Engine{_ptr: C.wasm_engine_new()}
 	runtime.SetFinalizer(engine, func(engine *Engine) {
-		C.wasm_engine_delete(engine._ptr)
+		engine.FreeMem()
 	})
 	return engine
 }
@@ -43,6 +45,12 @@ func (engine *Engine) ptr() *C.wasm_engine_t {
 	ret := engine._ptr
 	maybeGC()
 	return ret
+}
+
+func (engine *Engine) FreeMem() {
+	engine.once.Do(func() {
+		C.wasm_engine_delete(engine._ptr)
+	})
 }
 
 // IncrementEpoch will increase the current epoch number by 1 within the
